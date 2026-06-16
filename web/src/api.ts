@@ -101,3 +101,64 @@ export async function fetchConsultants(): Promise<Consultant[]> {
 export async function book(req: BookRequest): Promise<BookResponse> {
   return postJson<BookResponse>('/api/book', { sessionId: getSessionId(), ...req });
 }
+
+export interface Component {
+  handle: string;
+  name: string;
+  unitName: string;
+}
+
+export async function fetchComponents(): Promise<Component[]> {
+  let res: Response;
+  try {
+    res = await fetch('/api/components');
+  } catch (err) {
+    throw new ApiTransportError(err instanceof Error ? err.message : 'Network error');
+  }
+  const data = (await res.json()) as { status: string; components?: Component[] };
+  return data.components ?? [];
+}
+
+export interface UsageRecord {
+  componentHandle: string;
+  componentName: string;
+  recordedAs: 'metered' | 'event';
+  quantity: number;
+  periodTotal: number | null;
+  unitName: string;
+  memo: string | null;
+  accruesToNextInvoice: true;
+}
+
+export interface UsageRequest {
+  txnRef?: string;
+  consultantId?: string;
+  email?: string;
+  componentHandle: string;
+  quantity: number;
+  memo?: string;
+  timestamp?: string;
+}
+
+export type UsageResponse =
+  | {
+      status: 'ok';
+      txnId: string;
+      channelId: string | null;
+      channelName: string | null;
+      usage: UsageRecord;
+    }
+  | {
+      status: 'maxio_failed';
+      txnId: string;
+      channelId: string | null;
+      channelName: string | null;
+      error: string;
+    }
+  | { status: 'invalid'; errors: ValidationIssue[] }
+  | { status: 'session_expired'; message?: string }
+  | { status: 'error'; message: string };
+
+export async function recordUsage(req: UsageRequest): Promise<UsageResponse> {
+  return postJson<UsageResponse>('/api/usage', { sessionId: getSessionId(), ...req });
+}

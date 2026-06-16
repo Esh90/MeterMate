@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import { BookForm } from './components/client/BookForm.tsx';
+import { UsageForm } from './components/client/UsageForm.tsx';
 
 type Role = 'client' | 'admin';
+type ClientTab = 'book' | 'usage';
+
+const CLIENT_TABS: { id: ClientTab; label: string }[] = [
+  { id: 'book', label: 'Book & Subscribe' },
+  { id: 'usage', label: 'Report Usage' },
+];
 
 type HealthState =
   | { kind: 'loading' }
@@ -15,6 +22,7 @@ type HealthState =
  */
 export function App() {
   const [role, setRole] = useState<Role>('client');
+  const [clientTab, setClientTab] = useState<ClientTab>('book');
   const [health, setHealth] = useState<HealthState>({ kind: 'loading' });
 
   useEffect(() => {
@@ -79,7 +87,20 @@ export function App() {
 
       <main className="content">
         {role === 'client' ? (
-          <BookForm />
+          <>
+            <nav className="subnav" aria-label="Client actions">
+              {CLIENT_TABS.map((t) => (
+                <button
+                  key={t.id}
+                  className={clientTab === t.id ? 'active' : ''}
+                  onClick={() => setClientTab(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+            {clientTab === 'book' ? <BookForm /> : <UsageForm />}
+          </>
         ) : (
           <div className="card">
             <h2>Admin</h2>

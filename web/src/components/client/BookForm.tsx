@@ -7,6 +7,7 @@ import {
   type Consultant,
 } from '../../api.ts';
 import { PLAN_OPTIONS } from '../../constants.ts';
+import { setLastTxn } from '../../lastTxn.ts';
 
 interface FormState {
   firstName: string;
@@ -88,6 +89,9 @@ export function BookForm() {
         ...(form.couponCode.trim() ? { couponCode: form.couponCode.trim() } : {}),
       });
       setResult(res);
+      if (res.status === 'ok') {
+        setLastTxn({ txnId: res.txnId, channelName: res.channelName });
+      }
     } catch (err) {
       setTransportError(
         err instanceof ApiTransportError ? err.message : 'Unexpected error contacting the server.',
