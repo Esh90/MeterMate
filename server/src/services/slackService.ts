@@ -273,6 +273,48 @@ export function buildSubscriptionActiveBlocks(input: {
   ];
 }
 
+export function buildUsageStartedBlocks(componentName: string): KnownBlock[] {
+  return [
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: `:bar_chart: *Recording usage* — ${componentName}…` },
+    },
+  ];
+}
+
+export function buildUsageRecordedBlocks(input: {
+  componentName: string;
+  quantity: number;
+  unitName: string;
+  periodTotal: number | null;
+  recordedAs: 'metered' | 'event';
+}): KnownBlock[] {
+  const unit = input.quantity === 1 ? input.unitName : `${input.unitName}s`;
+  const fields: { type: 'mrkdwn'; text: string }[] = [
+    { type: 'mrkdwn', text: `*Component:*\n${input.componentName}` },
+    { type: 'mrkdwn', text: `*Recorded:*\n${input.quantity} ${unit}` },
+  ];
+  if (input.periodTotal != null) {
+    fields.push({ type: 'mrkdwn', text: `*Period total:*\n${input.periodTotal} ${input.unitName}s` });
+  }
+  return [
+    { type: 'header', text: { type: 'plain_text', text: ':white_check_mark: Usage recorded', emoji: true } },
+    { type: 'section', fields },
+    {
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text:
+            input.recordedAs === 'event'
+              ? ':information_source: Recorded as a usage event — accrues to the next invoice.'
+              : ':information_source: Accrues to the next invoice.',
+        },
+      ],
+    },
+  ];
+}
+
 export function buildFailureBlocks(useCase: string, error: string): KnownBlock[] {
   return [
     { type: 'header', text: { type: 'plain_text', text: `:warning: ${useCase} failed`, emoji: true } },

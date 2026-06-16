@@ -64,6 +64,30 @@ class TransactionStore {
     this.channelByPair.set(pairKey(consultantId, clientEmail), channel);
   }
 
+  /**
+   * Find the most recent completed subscription transaction for a pair (used by
+   * UC2+ to resolve a transaction when only consultant+client are supplied).
+   */
+  findLatestSubscriptionForPair(
+    consultantId: string,
+    clientEmail: string,
+  ): TransactionRecord | null {
+    const email = clientEmail.trim().toLowerCase();
+    let latest: TransactionRecord | null = null;
+    for (const txn of this.txns.values()) {
+      if (
+        txn.consultantId === consultantId &&
+        txn.clientEmail === email &&
+        txn.type === 'subscription' &&
+        txn.subscriptionId != null &&
+        (!latest || txn.updatedAt > latest.updatedAt)
+      ) {
+        latest = txn;
+      }
+    }
+    return latest;
+  }
+
   list(): TransactionRecord[] {
     return [...this.txns.values()];
   }

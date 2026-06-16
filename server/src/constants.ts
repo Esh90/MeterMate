@@ -61,3 +61,33 @@ export const PLAN_HANDLES: readonly string[] = PLANS.map((p) => p.handle);
 export function findPlan(handle: string): (typeof PLANS)[number] | undefined {
   return PLANS.find((p) => p.handle === handle);
 }
+
+/**
+ * Usage components (plan §1.6). Usage must be recorded against a component that
+ * is a line item on the subscription, which in Maxio means a component the
+ * *product* carries — family components are not auto-attached and the signup
+ * `components` array is ignored for metered components. These handles are the
+ * product's usage components on the configured site; UC2 resolves them from the
+ * subscription's own components at runtime (see maxioService.recordUsage). The
+ * seed verifies they exist rather than creating unattached duplicates.
+ */
+export const COMPONENTS = Object.freeze([
+  {
+    handle: 'metermate-consulting-minutes',
+    name: 'Consulting Minutes',
+    unitName: 'minute',
+    unitPrice: '2.00',
+  },
+  {
+    handle: 'metermate-api-calls',
+    name: 'API Calls',
+    unitName: 'call',
+    unitPrice: '0.01',
+  },
+] as const);
+
+export const COMPONENT_HANDLES: readonly string[] = COMPONENTS.map((c) => c.handle);
+
+export function findComponentMeta(handle: string): (typeof COMPONENTS)[number] | undefined {
+  return COMPONENTS.find((c) => c.handle === handle);
+}

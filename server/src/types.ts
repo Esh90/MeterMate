@@ -62,6 +62,29 @@ export interface SessionData {
   updatedAt: number;
 }
 
+/** A resolved Maxio component from the live catalog cache (UC2). */
+export interface ComponentInfo {
+  id: number;
+  handle: string;
+  name: string;
+  /** Maxio component kind, e.g. "metered_component" | "event_based_component". */
+  kind: string;
+}
+
+/** Normalized result of recording usage (UC2). */
+export interface UsageResult {
+  componentHandle: string;
+  componentName: string;
+  /** How the usage was recorded: 'metered' (quantity) or 'event'. */
+  recordedAs: 'metered' | 'event';
+  quantity: number;
+  /** Running total for the current period from usage history; null for events. */
+  periodTotal: number | null;
+  unitName: string;
+  memo: string | null;
+  accruesToNextInvoice: true;
+}
+
 /** Normalized result of a successful subscription creation (UC1). */
 export interface SubscriptionResult {
   subscriptionId: number;

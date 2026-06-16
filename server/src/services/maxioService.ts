@@ -1,7 +1,8 @@
 import { ApiError, CollectionMethod } from '@maxio-com/advanced-billing-sdk';
-import { getSubscriptionsController } from '../maxioClient.js';
+import { getSubscriptionsController, getSubscriptionComponentsController } from '../maxioClient.js';
 import { centsToNumber } from '../util.js';
-import type { CollectionMethodInput, SubscriptionResult } from '../types.js';
+import { findComponentMeta } from '../constants.js';
+import type { CollectionMethodInput, SubscriptionResult, UsageResult } from '../types.js';
 
 /**
  * Typed error thrown by maxioService. Carries an HTTP-ish status code and a
@@ -44,6 +45,13 @@ const COLLECTION_METHOD: Record<CollectionMethodInput, CollectionMethod> = {
   automatic: CollectionMethod.Automatic,
   remittance: CollectionMethod.Remittance,
 };
+
+/** Component kinds whose usage is recorded as a quantity via createUsage. */
+const QUANTITY_KINDS = new Set([
+  'metered_component',
+  'quantity_based_component',
+  'prepaid_usage_component',
+]);
 
 export interface CreateSubscriptionInput {
   productHandle: string;
@@ -103,5 +111,147 @@ export async function createSubscription(
   } catch (err) {
     if (err instanceof MaxioServiceError) throw err;
     throw toServiceError(err, 'UC1 createSubscription');
+  }
+}
+
+export interface RecordUsageInput {
+  subscriptionId: number;
+  componentHandle: string;
+  quantity: number;
+  memo?: string | undefined;
+  timestamp?: string | undefined;
+}
+
+interface SubscriptionComponentRef {
+  componentId: number;
+  handle: string;
+  name: string;
+  kind: string;
+}
+
+/**
+ * Resolve a component from the subscription's own line items. Usage can only be
+ * recorded against a component that is present on the subscription (Maxio 404s
+ * otherwise), so we look it up there rather than site-wide. Returns null with the
+ * list of available handles when the requested handle is not on the subscription.
+ */
+async function resolveSubscriptionComponent(
+  subscriptionId: number,
+  handle: string,
+): Promise<{ match: SubscriptionComponentRef | null; available: string[] }> {
+  const { result } = await getSubscriptionComponentsController().listSubscriptionComponents({
+    subscriptionId,
+  });
+  const refs: SubscriptionComponentRef[] = result
+    .map((r) => r.component)
+    .filter((c): c is NonNullable<typeof c> => c != null && c.componentId != null && Boolean(c.componentHandle))
+    .map((c) => ({
+      componentId: c.componentId as number,
+      handle: c.componentHandle as string,
+      name: c.name ?? (c.componentHandle as string),
+      kind: c.kind ? String(c.kind) : 'unknown',
+    }));
+  return {
+    match: refs.find((r) => r.handle === handle) ?? null,
+    available: refs.map((r) => r.handle),
+  };
+}
+
+/**
+ * UC2 — record usage against a component on the subscription. The component is
+ * resolved from the subscription's line items, then dispatched on its kind:
+ * quantity-style components record a usage quantity (+ optional memo) and the
+ * running period total is read back from usage history; event-based components
+ * record a usage event (+ optional timestamp). Rated usage accrues to the next
+ * invoice.
+ */
+export async function recordUsage(input: RecordUsageInput): Promise<UsageResult> {
+  try {
+    const { match, available } = await resolveSubscriptionComponent(
+      input.subscriptionId,
+      input.componentHandle,
+    );
+    if (!match) {
+      throw new MaxioServiceError(
+        `UC2 recordUsage: component '${input.componentHandle}' is not on subscription ${input.subscriptionId}. ` +
+          `Available: ${available.join(', ') || '(none)'}.`,
+        404,
+      );
+    }
+
+    const meta = findComponentMeta(input.componentHandle);
+    const unitName = meta?.unitName ?? match.name;
+    const sc = getSubscriptionComponentsController();
+
+    // Event-based path — record an event (timestamp optional).
+    if (match.kind === 'event_based_component') {
+      await sc.recordEvent(match.handle, undefined, {
+        chargify: {
+          subscriptionId: input.subscriptionId,
+          ...(input.timestamp ? { timestamp: input.timestamp } : {}),
+        },
+      });
+      return {
+        componentHandle: match.handle,
+        componentName: match.name,
+        recordedAs: 'event',
+        quantity: input.quantity,
+        periodTotal: null,
+        unitName,
+        memo: input.memo ?? null,
+        accruesToNextInvoice: true,
+      };
+    }
+
+    // Quantity-style path — record a usage quantity, then read the period total.
+    if (!QUANTITY_KINDS.has(match.kind)) {
+      throw new MaxioServiceError(
+        `UC2 recordUsage: component '${match.handle}' has kind '${match.kind}', which does not accept usage.`,
+        422,
+      );
+    }
+
+    await sc.createUsage(input.subscriptionId, match.componentId, {
+      usage: {
+        quantity: input.quantity,
+        ...(input.memo ? { memo: input.memo } : {}),
+      },
+    });
+
+    const periodTotal = await readPeriodTotal(input.subscriptionId, match.componentId);
+
+    return {
+      componentHandle: match.handle,
+      componentName: match.name,
+      recordedAs: 'metered',
+      quantity: input.quantity,
+      periodTotal,
+      unitName,
+      memo: input.memo ?? null,
+      accruesToNextInvoice: true,
+    };
+  } catch (err) {
+    if (err instanceof MaxioServiceError) throw err;
+    throw toServiceError(err, 'UC2 recordUsage');
+  }
+}
+
+/** Sum recorded usage quantities for a component (best-effort period total). */
+async function readPeriodTotal(subscriptionId: number, componentId: number): Promise<number | null> {
+  try {
+    const { result } = await getSubscriptionComponentsController().listUsages({
+      subscriptionIdOrReference: subscriptionId,
+      componentId,
+      perPage: 200,
+      page: 1,
+    });
+    return result.reduce((sum, u) => {
+      const q = u.usage?.quantity;
+      const n = typeof q === 'string' ? Number(q) : (q ?? 0);
+      return sum + (Number.isFinite(n) ? n : 0);
+    }, 0);
+  } catch {
+    // Period total is informational; never fail the recording over it.
+    return null;
   }
 }

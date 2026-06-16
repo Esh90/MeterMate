@@ -1,6 +1,10 @@
 import { ApiError, IntervalUnit } from '@maxio-com/advanced-billing-sdk';
-import { getProductsController, getProductFamiliesController } from './maxioClient.js';
-import { PRODUCT_FAMILY, PLANS } from './constants.js';
+import {
+  getProductsController,
+  getProductFamiliesController,
+  getComponentsController,
+} from './maxioClient.js';
+import { PRODUCT_FAMILY, PLANS, COMPONENTS } from './constants.js';
 import { formatCents } from './util.js';
 
 /**
@@ -61,12 +65,40 @@ async function ensureProduct(familyId: string, plan: (typeof PLANS)[number]): Pr
   );
 }
 
+/**
+ * Verify the usage components exist on the site. Usage is recorded against a
+ * component that is a line item on the subscription, which in Maxio means a
+ * component carried by the *product* — creating a standalone family component
+ * does NOT attach it to products/subscriptions. So the seed verifies the
+ * expected handles resolve (and warns if not) rather than creating unattached
+ * duplicates; attaching a component to the products is a one-time Maxio UI step.
+ */
+async function verifyComponents(): Promise<void> {
+  const components = getComponentsController();
+  for (const comp of COMPONENTS) {
+    try {
+      const { result } = await components.findComponent(comp.handle);
+      console.log(`• Usage component '${comp.handle}' present (id ${result.component?.id}).`);
+    } catch (err) {
+      if (err instanceof ApiError && err.statusCode === 404) {
+        console.warn(
+          `! Usage component '${comp.handle}' is MISSING — create it in Maxio and add it to the ` +
+            `'basic'/'pro' products so it appears on subscriptions (UC2 records against it).`,
+        );
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 async function main(): Promise<void> {
   console.log('Seeding MeterMate products on Maxio test site…\n');
   const familyId = await ensureProductFamily();
   for (const plan of PLANS) {
     await ensureProduct(familyId, plan);
   }
+  await verifyComponents();
   console.log('\nSeed complete. Plan handles ready: ' + PLANS.map((p) => p.handle).join(', '));
 }
 

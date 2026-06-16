@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { config } from '../config.js';
-import { CONSULTANTS } from '../constants.js';
+import { CONSULTANTS, COMPONENTS } from '../constants.js';
 import { sessionStore } from '../stores/sessionStore.js';
 import { transactionStore } from '../stores/transactionStore.js';
 import { runtimeState } from '../state.js';
@@ -26,5 +26,17 @@ metaRouter.get('/consultants', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     consultants: CONSULTANTS.map((c) => ({ id: c.id, name: c.name })),
+  });
+});
+
+/** Usage component dropdown (UC2). Mirrors the seeded pricing model. */
+metaRouter.get('/components', (_req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    components: COMPONENTS.map((c) => ({
+      handle: c.handle,
+      name: c.name,
+      unitName: c.unitName,
+    })),
   });
 });

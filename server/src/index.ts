@@ -2,6 +2,7 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import { config } from './config.js';
 import { metaRouter } from './routes/meta.js';
 import { bookRouter } from './routes/book.js';
+import { usageRouter } from './routes/usage.js';
 import { sessionStore } from './stores/sessionStore.js';
 import { verifyAuth } from './services/slackService.js';
 import { runtimeState } from './state.js';
@@ -11,8 +12,9 @@ const app = express();
 app.use(express.json());
 
 // --- API routes ---
-app.use('/api', metaRouter); // /api/health, /api/consultants
+app.use('/api', metaRouter); // /api/health, /api/consultants, /api/components
 app.use('/api', bookRouter); // UC1 — POST /api/book
+app.use('/api', usageRouter); // UC2 — POST /api/usage
 
 // --- 404 for unknown API routes ---
 app.use('/api', (_req: Request, res: Response) => {
