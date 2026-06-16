@@ -248,3 +248,73 @@ code {
   border-radius: 4px;
   font-size: 0.85em;
 }
+
+.adminbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 0.35rem 0.7rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+button.ghost:hover {
+  color: var(--text);
+}
+
+fieldset.lineitems {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem 0.25rem;
+}
+
+fieldset.lineitems legend {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 0 0.4rem;
+}
+
+.row.lineitem {
+  align-items: flex-end;
+}
+
+.row.lineitem label:first-child {
+  flex: 2;
+}
+
+label.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+}
+
+label.checkbox input {
+  width: auto;
+}
+
+.paylink {
+  display: inline-block;
+  margin-top: 0.75rem;
+  background: var(--accent);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.paylink:hover {
+  background: var(--accent-hover);
+}

@@ -3,6 +3,7 @@
  * plan §4.5; every mutating response is discriminated by `status`.
  */
 import { getSessionId } from './session.ts';
+import { getAdminAuthHeader } from './adminAuth.ts';
 
 export interface Consultant {
   id: string;
@@ -67,12 +68,16 @@ export type BookResponse =
 /** Network/transport failure surfaced to the UI as a discriminated value. */
 export class ApiTransportError extends Error {}
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
+async function postJson<T>(
+  path: string,
+  body: unknown,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
   let res: Response;
   try {
     res = await fetch(path, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...extraHeaders },
       body: JSON.stringify(body),
     });
   } catch (err) {
@@ -254,4 +259,46 @@ export interface LifecycleRequest {
 
 export async function lifecycleAction(req: LifecycleRequest): Promise<LifecycleResponse> {
   return postJson<LifecycleResponse>('/api/lifecycle', { sessionId: getSessionId(), ...req });
+}
+
+export interface InvoiceLineItem {
+  title: string;
+  quantity: number;
+  unitPrice: string;
+}
+
+export interface InvoiceData {
+  uid: string;
+  number: string | null;
+  status: string;
+  totalAmount: string | null;
+  dueAmount: string | null;
+  dueDate: string | null;
+  publicUrl: string | null;
+  emailed: boolean;
+}
+
+export interface IssueInvoiceRequest {
+  txnRef: string;
+  lineItems?: InvoiceLineItem[];
+  memo?: string;
+  sendEmail: boolean;
+}
+
+export type InvoiceResponse =
+  | { status: 'ok'; txnId: string; channelId: string | null; channelName: string | null; invoice: InvoiceData }
+  | FailedShape
+  | { status: 'invalid'; errors: ValidationIssue[] }
+  | { status: 'session_expired'; message?: string }
+  | { status: 'unauthorized'; message?: string }
+  | { status: 'error'; message: string };
+
+/** Admin-only. Attaches the admin Basic-auth header; 401 → status 'unauthorized'. */
+export async function issueInvoice(req: IssueInvoiceRequest): Promise<InvoiceResponse> {
+  const auth = getAdminAuthHeader();
+  return postJson<InvoiceResponse>(
+    '/api/invoices',
+    { sessionId: getSessionId(), ...req },
+    auth ? { Authorization: auth } : {},
+  );
 }

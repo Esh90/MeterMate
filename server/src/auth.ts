@@ -32,6 +32,9 @@ export function adminGuard(req: Request, res: Response, next: NextFunction): voi
       }
     }
   }
-  res.set('WWW-Authenticate', 'Basic realm="MeterMate Admin"');
+  // Deliberately NOT setting `WWW-Authenticate: Basic` here: that header makes
+  // browsers pop their native HTTP-auth dialog on a 401, hijacking our React
+  // login flow. Omitting it lets the SPA handle the 401 inline. (Standard for
+  // XHR/JSON endpoints.)
   res.status(401).json({ status: 'unauthorized', message: 'Admin credentials required.' });
 }

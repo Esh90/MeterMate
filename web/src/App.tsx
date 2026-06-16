@@ -3,6 +3,9 @@ import { BookForm } from './components/client/BookForm.tsx';
 import { UsageForm } from './components/client/UsageForm.tsx';
 import { PlanChangeForm } from './components/client/PlanChangeForm.tsx';
 import { LifecycleForm } from './components/client/LifecycleForm.tsx';
+import { AdminLogin } from './components/admin/AdminLogin.tsx';
+import { InvoiceForm } from './components/admin/InvoiceForm.tsx';
+import { hasAdminCreds, clearAdminCreds } from './adminAuth.ts';
 
 type Role = 'client' | 'admin';
 type ClientTab = 'book' | 'usage' | 'plan' | 'lifecycle';
@@ -27,7 +30,13 @@ type HealthState =
 export function App() {
   const [role, setRole] = useState<Role>('client');
   const [clientTab, setClientTab] = useState<ClientTab>('book');
+  const [adminLoggedIn, setAdminLoggedIn] = useState<boolean>(hasAdminCreds());
   const [health, setHealth] = useState<HealthState>({ kind: 'loading' });
+
+  function signOutAdmin() {
+    clearAdminCreds();
+    setAdminLoggedIn(false);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -108,14 +117,18 @@ export function App() {
             {clientTab === 'plan' && <PlanChangeForm />}
             {clientTab === 'lifecycle' && <LifecycleForm />}
           </>
+        ) : adminLoggedIn ? (
+          <>
+            <div className="adminbar">
+              <span className="muted">Signed in as operator</span>
+              <button className="ghost" onClick={signOutAdmin}>
+                Sign out
+              </button>
+            </div>
+            <InvoiceForm onUnauthorized={signOutAdmin} />
+          </>
         ) : (
-          <div className="card">
-            <h2>Admin</h2>
-            <p className="muted">
-              Admin tools (invoice issue &amp; activity digest) connect here as their backends are
-              built. The booking flow is available under the Client role.
-            </p>
-          </div>
+          <AdminLogin onLogin={() => setAdminLoggedIn(true)} />
         )}
       </main>
     </div>
