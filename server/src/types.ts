@@ -144,6 +144,22 @@ export interface InvoiceResult {
   emailed: boolean;
 }
 
+/** Billing activity digest for a consultant (UC6). */
+export interface DigestResult {
+  consultantId: string;
+  consultantName: string;
+  windowDays: number;
+  subscriptionsConsidered: number;
+  activeCount: number;
+  mrrInCents: number;
+  newSignups: number;
+  churn: number;
+  overdueInvoices: number;
+  recentEvents: number;
+  /** Reconciliation caveat surfaced in the digest (counts may lag live state). */
+  caveat: string;
+}
+
 /** Normalized result of a successful subscription creation (UC1). */
 export interface SubscriptionResult {
   subscriptionId: number;

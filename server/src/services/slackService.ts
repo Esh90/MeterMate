@@ -464,6 +464,49 @@ export function buildInvoiceIssuedBlocks(input: {
   return blocks;
 }
 
+export function buildDigestBlocks(input: {
+  consultantName: string;
+  windowDays: number;
+  activeCount: number;
+  mrrInCents: number;
+  newSignups: number;
+  churn: number;
+  overdueInvoices: number;
+  recentEvents: number;
+  caveat: string;
+}): KnownBlock[] {
+  return [
+    {
+      type: 'header',
+      text: { type: 'plain_text', text: ':chart_with_upwards_trend: Billing digest', emoji: true },
+    },
+    {
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: `*${input.consultantName}* · last ${input.windowDays} days`,
+        },
+      ],
+    },
+    {
+      type: 'section',
+      fields: [
+        { type: 'mrkdwn', text: `*Active subscriptions:*\n${input.activeCount}` },
+        { type: 'mrkdwn', text: `*MRR:*\n${formatCents(input.mrrInCents)}` },
+        { type: 'mrkdwn', text: `*New signups:*\n${input.newSignups}` },
+        { type: 'mrkdwn', text: `*Churn:*\n${input.churn}` },
+        { type: 'mrkdwn', text: `*Overdue invoices:*\n${input.overdueInvoices}` },
+        { type: 'mrkdwn', text: `*Recent events:*\n${input.recentEvents}` },
+      ],
+    },
+    {
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `:information_source: ${input.caveat}` }],
+    },
+  ];
+}
+
 export function buildFailureBlocks(useCase: string, error: string): KnownBlock[] {
   return [
     { type: 'header', text: { type: 'plain_text', text: `:warning: ${useCase} failed`, emoji: true } },

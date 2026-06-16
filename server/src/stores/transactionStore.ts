@@ -88,6 +88,13 @@ class TransactionStore {
     return latest;
   }
 
+  /** All subscription transactions (with a subscription id) for a consultant. */
+  findSubscriptionsForConsultant(consultantId: string): TransactionRecord[] {
+    return [...this.txns.values()].filter(
+      (t) => t.consultantId === consultantId && t.type === 'subscription' && t.subscriptionId != null,
+    );
+  }
+
   list(): TransactionRecord[] {
     return [...this.txns.values()];
   }

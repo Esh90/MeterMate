@@ -38,6 +38,10 @@ const EnvSchema = z.object({
     .default('true')
     .transform((v) => v === 'true'),
   DIGEST_CRON: z.string().default('0 9 * * 1'),
+  DIGEST_CRON_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 });
 

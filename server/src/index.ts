@@ -6,9 +6,11 @@ import { usageRouter } from './routes/usage.js';
 import { planChangeRouter } from './routes/planChange.js';
 import { lifecycleRouter } from './routes/lifecycle.js';
 import { invoicesRouter } from './routes/invoices.js';
+import { digestRouter } from './routes/digest.js';
 import { sessionStore } from './stores/sessionStore.js';
 import { verifyAuth } from './services/slackService.js';
 import { runtimeState } from './state.js';
+import { startDigestCron, stopDigestCron } from './cron.js';
 
 const app = express();
 
@@ -21,6 +23,7 @@ app.use('/api', usageRouter); // UC2 — POST /api/usage
 app.use('/api', planChangeRouter); // UC3 — POST /api/plan-change(/preview)
 app.use('/api', lifecycleRouter); // UC4 — POST /api/lifecycle
 app.use('/api', invoicesRouter); // UC5 — POST /api/invoices (adminGuard)
+app.use('/api', digestRouter); // UC6 — POST /api/digest (adminGuard)
 
 // --- 404 for unknown API routes ---
 app.use('/api', (_req: Request, res: Response) => {
@@ -40,6 +43,9 @@ const server = app.listen(config.PORT, () => {
   // Live session sweep so idle sessions don't grow memory (plan §4.3).
   sessionStore.startSweeper();
 
+  // Optional scheduled digest (dormant unless DIGEST_CRON_ENABLED=true).
+  startDigestCron();
+
   // Boot Slack auth check (plan §3.1); cached and reported by /api/health.
   verifyAuth()
     .then((status) => {
@@ -55,6 +61,7 @@ const server = app.listen(config.PORT, () => {
 const shutdown = (signal: string) => {
   console.log(`[server] received ${signal}, shutting down…`);
   sessionStore.stopSweeper();
+  stopDigestCron();
   server.close(() => process.exit(0));
 };
 process.on('SIGINT', () => shutdown('SIGINT'));

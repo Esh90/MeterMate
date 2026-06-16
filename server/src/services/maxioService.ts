@@ -1,16 +1,24 @@
-import { ApiError, CollectionMethod, CreateInvoiceStatus } from '@maxio-com/advanced-billing-sdk';
+import {
+  ApiError,
+  CollectionMethod,
+  CreateInvoiceStatus,
+  InvoiceStatus,
+} from '@maxio-com/advanced-billing-sdk';
 import {
   getSubscriptionsController,
   getSubscriptionComponentsController,
   getSubscriptionProductsController,
   getSubscriptionStatusController,
   getInvoicesController,
+  getEventsController,
 } from '../maxioClient.js';
 import { centsToNumber } from '../util.js';
-import { findComponentMeta, findPlan } from '../constants.js';
+import { findComponentMeta, findPlan, findConsultant } from '../constants.js';
+import { transactionStore } from '../stores/transactionStore.js';
 import type {
   CancelType,
   CollectionMethodInput,
+  DigestResult,
   InvoiceLineItemInput,
   InvoiceResult,
   LifecycleAction,
@@ -551,5 +559,96 @@ export async function issueInvoice(input: IssueInvoiceInput): Promise<InvoiceRes
   } catch (err) {
     if (err instanceof MaxioServiceError) throw err;
     throw toServiceError(err, 'UC5 issueInvoice');
+  }
+}
+
+const ACTIVE_STATES = new Set(['active', 'trialing']);
+const DIGEST_CAVEAT =
+  'Reporting data is for reconciliation, not real-time confirmation; counts may lag live state slightly.';
+
+/**
+ * UC6 — build a per-consultant billing activity digest. The consultant is a
+ * MeterMate label, not a Maxio entity, so the consultant's scope is the set of
+ * subscriptions MeterMate created for them (from the transaction store). For each
+ * subscription it reads live state + MRR, lists open invoices (counting overdue),
+ * and counts recent events in the window. Mirrors the Maxio reconciliation
+ * caveat (plan §2 UC6).
+ */
+export async function buildDigest(consultantId: string, windowDays: number): Promise<DigestResult> {
+  try {
+    const consultant = findConsultant(consultantId);
+    const txns = transactionStore.findSubscriptionsForConsultant(consultantId);
+
+    // Dedupe to unique subscriptions, keeping the earliest creation time.
+    const subs = new Map<number, { createdAt: number }>();
+    for (const t of txns) {
+      const id = t.subscriptionId as number;
+      const existing = subs.get(id);
+      if (!existing || t.createdAt < existing.createdAt) subs.set(id, { createdAt: t.createdAt });
+    }
+
+    const windowStartMs = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+    const subscriptions = getSubscriptionsController();
+    const invoices = getInvoicesController();
+    const events = getEventsController();
+
+    let activeCount = 0;
+    let mrrInCents = 0;
+    let newSignups = 0;
+    let churn = 0;
+    let overdueInvoices = 0;
+    let recentEvents = 0;
+
+    for (const [subscriptionId, meta] of subs) {
+      if (meta.createdAt >= windowStartMs) newSignups += 1;
+
+      const { result: subRes } = await subscriptions.readSubscription(subscriptionId);
+      const sub = subRes.subscription;
+      const state = sub?.state ? String(sub.state) : 'unknown';
+      if (ACTIVE_STATES.has(state)) {
+        activeCount += 1;
+        mrrInCents +=
+          centsToNumber(sub?.productPriceInCents) ?? centsToNumber(sub?.product?.priceInCents) ?? 0;
+      }
+      if (state === 'canceled') churn += 1;
+
+      const { result: invRes } = await invoices.listInvoices({
+        subscriptionId,
+        status: InvoiceStatus.Open,
+        perPage: 100,
+      });
+      overdueInvoices += invRes.invoices.filter((inv) => inv.dueDate != null && inv.dueDate < today).length;
+
+      // Recent events are supplementary. The SDK strictly validates event
+      // payloads and can reject newer/unknown `event_specific_data` shapes, so a
+      // failure here must not sink the whole digest (best-effort, like usage).
+      try {
+        const { result: evRes } = await events.listSubscriptionEvents({ subscriptionId, perPage: 100 });
+        recentEvents += evRes.filter(
+          (e) => e.event?.createdAt != null && new Date(e.event.createdAt).getTime() >= windowStartMs,
+        ).length;
+      } catch (evErr) {
+        console.warn(`[maxio] listSubscriptionEvents(${subscriptionId}) skipped: ${String(evErr)}`);
+      }
+    }
+
+    return {
+      consultantId,
+      consultantName: consultant?.name ?? consultantId,
+      windowDays,
+      subscriptionsConsidered: subs.size,
+      activeCount,
+      mrrInCents,
+      newSignups,
+      churn,
+      overdueInvoices,
+      recentEvents,
+      caveat: DIGEST_CAVEAT,
+    };
+  } catch (err) {
+    if (err instanceof MaxioServiceError) throw err;
+    throw toServiceError(err, 'UC6 buildDigest');
   }
 }
