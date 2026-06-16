@@ -302,3 +302,39 @@ export async function issueInvoice(req: IssueInvoiceRequest): Promise<InvoiceRes
     auth ? { Authorization: auth } : {},
   );
 }
+
+export interface DigestData {
+  consultantId: string;
+  consultantName: string;
+  windowDays: number;
+  subscriptionsConsidered: number;
+  activeCount: number;
+  mrrInCents: number;
+  newSignups: number;
+  churn: number;
+  overdueInvoices: number;
+  recentEvents: number;
+  caveat: string;
+}
+
+export type DigestResponse =
+  | { status: 'ok'; digest: DigestData; posted: boolean; channelId: string | null }
+  | { status: 'maxio_failed'; error: string }
+  | { status: 'invalid'; errors: ValidationIssue[] }
+  | { status: 'unauthorized'; message?: string }
+  | { status: 'error'; message: string };
+
+export interface DigestRequest {
+  consultantId: string;
+  windowDays?: number;
+}
+
+/** Admin-only. Builds a consultant's billing digest; 401 → status 'unauthorized'. */
+export async function requestDigest(req: DigestRequest): Promise<DigestResponse> {
+  const auth = getAdminAuthHeader();
+  return postJson<DigestResponse>(
+    '/api/digest',
+    { sessionId: getSessionId(), ...req },
+    auth ? { Authorization: auth } : {},
+  );
+}

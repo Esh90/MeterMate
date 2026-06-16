@@ -5,10 +5,17 @@ import { PlanChangeForm } from './components/client/PlanChangeForm.tsx';
 import { LifecycleForm } from './components/client/LifecycleForm.tsx';
 import { AdminLogin } from './components/admin/AdminLogin.tsx';
 import { InvoiceForm } from './components/admin/InvoiceForm.tsx';
+import { ActivityPanel } from './components/admin/ActivityPanel.tsx';
 import { hasAdminCreds, clearAdminCreds } from './adminAuth.ts';
 
 type Role = 'client' | 'admin';
 type ClientTab = 'book' | 'usage' | 'plan' | 'lifecycle';
+type AdminTab = 'invoice' | 'digest';
+
+const ADMIN_TABS: { id: AdminTab; label: string }[] = [
+  { id: 'invoice', label: 'Issue Invoice' },
+  { id: 'digest', label: 'Activity Digest' },
+];
 
 const CLIENT_TABS: { id: ClientTab; label: string }[] = [
   { id: 'book', label: 'Book & Subscribe' },
@@ -31,6 +38,7 @@ export function App() {
   const [role, setRole] = useState<Role>('client');
   const [clientTab, setClientTab] = useState<ClientTab>('book');
   const [adminLoggedIn, setAdminLoggedIn] = useState<boolean>(hasAdminCreds());
+  const [adminTab, setAdminTab] = useState<AdminTab>('invoice');
   const [health, setHealth] = useState<HealthState>({ kind: 'loading' });
 
   function signOutAdmin() {
@@ -125,7 +133,22 @@ export function App() {
                 Sign out
               </button>
             </div>
-            <InvoiceForm onUnauthorized={signOutAdmin} />
+            <nav className="subnav" aria-label="Admin actions">
+              {ADMIN_TABS.map((t) => (
+                <button
+                  key={t.id}
+                  className={adminTab === t.id ? 'active' : ''}
+                  onClick={() => setAdminTab(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+            {adminTab === 'invoice' ? (
+              <InvoiceForm onUnauthorized={signOutAdmin} />
+            ) : (
+              <ActivityPanel onUnauthorized={signOutAdmin} />
+            )}
           </>
         ) : (
           <AdminLogin onLogin={() => setAdminLoggedIn(true)} />
