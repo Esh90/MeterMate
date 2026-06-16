@@ -3,11 +3,15 @@ import {
   getSubscriptionsController,
   getSubscriptionComponentsController,
   getSubscriptionProductsController,
+  getSubscriptionStatusController,
 } from '../maxioClient.js';
 import { centsToNumber } from '../util.js';
 import { findComponentMeta, findPlan } from '../constants.js';
 import type {
+  CancelType,
   CollectionMethodInput,
+  LifecycleAction,
+  LifecycleResult,
   PlanChangePreview,
   PlanChangeResult,
   SubscriptionResult,
@@ -385,5 +389,96 @@ export async function applyPlanChange(input: ApplyPlanChangeInput): Promise<Plan
   } catch (err) {
     if (err instanceof MaxioServiceError) throw err;
     throw toServiceError(err, 'UC3 applyPlanChange');
+  }
+}
+
+async function readSubscriptionState(
+  subscriptionId: number,
+): Promise<{ state: string; currentPeriodEndsAt: string | null }> {
+  const { result } = await getSubscriptionsController().readSubscription(subscriptionId);
+  const sub = result.subscription;
+  return {
+    state: sub?.state ? String(sub.state) : 'unknown',
+    currentPeriodEndsAt: sub?.currentPeriodEndsAt ?? null,
+  };
+}
+
+export interface LifecycleInput {
+  subscriptionId: number;
+  action: LifecycleAction;
+  cancelType?: CancelType | undefined;
+  reasonCode?: string | undefined;
+}
+
+/**
+ * UC4 — lifecycle control. Maps each action to its Maxio status operation:
+ * pause→hold, resume→resume, cancel+immediate→cancel now,
+ * cancel+end-of-period→delayed cancellation (effective at period end),
+ * reactivate→reactivate. Reads the new state back to report the transition.
+ */
+export async function lifecycleAction(input: LifecycleInput): Promise<LifecycleResult> {
+  const status = getSubscriptionStatusController();
+  try {
+    const before = await readSubscriptionState(input.subscriptionId);
+
+    const base: LifecycleResult = {
+      action: input.action,
+      cancelType: null,
+      previousState: before.state,
+      newState: before.state,
+      effectiveAt: null,
+      reasonCode: input.reasonCode ?? null,
+      note: null,
+    };
+
+    switch (input.action) {
+      case 'pause': {
+        const { result } = await status.pauseSubscription(input.subscriptionId, undefined);
+        return { ...base, newState: result.subscription?.state ? String(result.subscription.state) : before.state };
+      }
+      case 'resume': {
+        const { result } = await status.resumeSubscription(input.subscriptionId, undefined);
+        return { ...base, newState: result.subscription?.state ? String(result.subscription.state) : before.state };
+      }
+      case 'reactivate': {
+        const { result } = await status.reactivateSubscription(input.subscriptionId, {});
+        return { ...base, newState: result.subscription?.state ? String(result.subscription.state) : before.state };
+      }
+      case 'cancel': {
+        const cancelType: CancelType = input.cancelType ?? 'immediate';
+        const cancellation = {
+          ...(input.reasonCode ? { reasonCode: input.reasonCode } : {}),
+          cancellationMessage: 'Canceled via MeterMate',
+        };
+        if (cancelType === 'end-of-period') {
+          const { result } = await status.initiateDelayedCancellation(input.subscriptionId, {
+            subscription: cancellation,
+          });
+          const after = await readSubscriptionState(input.subscriptionId);
+          return {
+            ...base,
+            cancelType,
+            newState: after.state,
+            effectiveAt: after.currentPeriodEndsAt,
+            note: result.message ?? 'Cancellation scheduled for end of period.',
+          };
+        }
+        const { result } = await status.cancelSubscription(input.subscriptionId, {
+          subscription: cancellation,
+        });
+        return {
+          ...base,
+          cancelType,
+          newState: result.subscription?.state ? String(result.subscription.state) : 'canceled',
+        };
+      }
+      default: {
+        const exhaustive: never = input.action;
+        throw new MaxioServiceError(`UC4 lifecycleAction: unknown action '${String(exhaustive)}'`, 400);
+      }
+    }
+  } catch (err) {
+    if (err instanceof MaxioServiceError) throw err;
+    throw toServiceError(err, 'UC4 lifecycleAction');
   }
 }

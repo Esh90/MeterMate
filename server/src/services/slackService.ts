@@ -378,6 +378,47 @@ export function buildPlanChangedBlocks(input: {
   ];
 }
 
+export function buildLifecycleStartedBlocks(action: string): KnownBlock[] {
+  const label = action.charAt(0).toUpperCase() + action.slice(1);
+  return [
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: `:vertical_traffic_light: *${label} in progress…*` },
+    },
+  ];
+}
+
+export function buildLifecycleDoneBlocks(input: {
+  action: string;
+  previousState: string;
+  newState: string;
+  effectiveAt: string | null;
+  reasonCode: string | null;
+  note: string | null;
+}): KnownBlock[] {
+  const fields: { type: 'mrkdwn'; text: string }[] = [
+    { type: 'mrkdwn', text: `*Transition:*\n${input.previousState} → ${input.newState}` },
+    { type: 'mrkdwn', text: `*Action:*\n${input.action}` },
+  ];
+  if (input.effectiveAt) {
+    fields.push({ type: 'mrkdwn', text: `*Effective:*\n${input.effectiveAt}` });
+  }
+  if (input.reasonCode) {
+    fields.push({ type: 'mrkdwn', text: `*Reason:*\n${input.reasonCode}` });
+  }
+  const blocks: KnownBlock[] = [
+    {
+      type: 'header',
+      text: { type: 'plain_text', text: `:vertical_traffic_light: ${input.previousState} → ${input.newState}`, emoji: true },
+    },
+    { type: 'section', fields },
+  ];
+  if (input.note) {
+    blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `:information_source: ${input.note}` }] });
+  }
+  return blocks;
+}
+
 export function buildFailureBlocks(useCase: string, error: string): KnownBlock[] {
   return [
     { type: 'header', text: { type: 'plain_text', text: `:warning: ${useCase} failed`, emoji: true } },

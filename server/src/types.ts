@@ -110,6 +110,21 @@ export interface PlanChangeResult {
   state: string;
 }
 
+export type LifecycleAction = 'pause' | 'resume' | 'cancel' | 'reactivate';
+export type CancelType = 'immediate' | 'end-of-period';
+
+/** Result of a lifecycle action (UC4). */
+export interface LifecycleResult {
+  action: LifecycleAction;
+  cancelType: CancelType | null;
+  previousState: string;
+  newState: string;
+  /** When the change takes effect (null = immediate; date for end-of-period). */
+  effectiveAt: string | null;
+  reasonCode: string | null;
+  note: string | null;
+}
+
 /** Normalized result of a successful subscription creation (UC1). */
 export interface SubscriptionResult {
   subscriptionId: number;
