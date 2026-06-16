@@ -1,15 +1,18 @@
-import { ApiError, CollectionMethod } from '@maxio-com/advanced-billing-sdk';
+import { ApiError, CollectionMethod, CreateInvoiceStatus } from '@maxio-com/advanced-billing-sdk';
 import {
   getSubscriptionsController,
   getSubscriptionComponentsController,
   getSubscriptionProductsController,
   getSubscriptionStatusController,
+  getInvoicesController,
 } from '../maxioClient.js';
 import { centsToNumber } from '../util.js';
 import { findComponentMeta, findPlan } from '../constants.js';
 import type {
   CancelType,
   CollectionMethodInput,
+  InvoiceLineItemInput,
+  InvoiceResult,
   LifecycleAction,
   LifecycleResult,
   PlanChangePreview,
@@ -480,5 +483,73 @@ export async function lifecycleAction(input: LifecycleInput): Promise<LifecycleR
   } catch (err) {
     if (err instanceof MaxioServiceError) throw err;
     throw toServiceError(err, 'UC4 lifecycleAction');
+  }
+}
+
+export interface IssueInvoiceInput {
+  subscriptionId: number;
+  clientEmail: string;
+  lineItems?: InvoiceLineItemInput[] | undefined;
+  memo?: string | undefined;
+  sendEmail: boolean;
+}
+
+const DEFAULT_LINE_ITEM: InvoiceLineItemInput = {
+  title: 'MeterMate consulting services',
+  quantity: 1,
+  unitPrice: '50.00',
+};
+
+/**
+ * UC5 — create and issue an ad-hoc invoice for the subscription, optionally
+ * emailing it, then read back the issued invoice's amount due, due date and
+ * hosted public payment URL. Creating with `status: Open` both creates and
+ * issues the invoice in one call (the path for ad-hoc subscription invoices). If
+ * no line items are supplied, a single default line item is used so the invoice
+ * is non-empty and issuable.
+ */
+export async function issueInvoice(input: IssueInvoiceInput): Promise<InvoiceResult> {
+  const invoices = getInvoicesController();
+  try {
+    const items = input.lineItems && input.lineItems.length ? input.lineItems : [DEFAULT_LINE_ITEM];
+    const { result: created } = await invoices.createInvoice(input.subscriptionId, {
+      invoice: {
+        lineItems: items.map((li) => ({
+          title: li.title,
+          quantity: li.quantity,
+          unitPrice: li.unitPrice,
+        })),
+        ...(input.memo ? { memo: input.memo } : {}),
+        status: CreateInvoiceStatus.Open,
+      },
+    });
+
+    const uid = created.invoice?.uid;
+    if (!uid) {
+      throw new MaxioServiceError('UC5 issueInvoice: Maxio returned no invoice uid', 502);
+    }
+
+    let emailed = false;
+    if (input.sendEmail) {
+      await invoices.sendInvoice(uid, { recipientEmails: [input.clientEmail] });
+      emailed = true;
+    }
+
+    // Read back the issued invoice for the authoritative amounts and hosted URL.
+    const { result: inv } = await invoices.readInvoice(uid);
+
+    return {
+      uid,
+      number: inv.number ?? created.invoice?.number ?? null,
+      status: inv.status ? String(inv.status) : 'unknown',
+      totalAmount: inv.totalAmount ?? null,
+      dueAmount: inv.dueAmount ?? null,
+      dueDate: inv.dueDate ?? null,
+      publicUrl: inv.publicUrl ?? null,
+      emailed,
+    };
+  } catch (err) {
+    if (err instanceof MaxioServiceError) throw err;
+    throw toServiceError(err, 'UC5 issueInvoice');
   }
 }

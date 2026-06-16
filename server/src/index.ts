@@ -5,6 +5,7 @@ import { bookRouter } from './routes/book.js';
 import { usageRouter } from './routes/usage.js';
 import { planChangeRouter } from './routes/planChange.js';
 import { lifecycleRouter } from './routes/lifecycle.js';
+import { invoicesRouter } from './routes/invoices.js';
 import { sessionStore } from './stores/sessionStore.js';
 import { verifyAuth } from './services/slackService.js';
 import { runtimeState } from './state.js';
@@ -19,6 +20,7 @@ app.use('/api', bookRouter); // UC1 — POST /api/book
 app.use('/api', usageRouter); // UC2 — POST /api/usage
 app.use('/api', planChangeRouter); // UC3 — POST /api/plan-change(/preview)
 app.use('/api', lifecycleRouter); // UC4 — POST /api/lifecycle
+app.use('/api', invoicesRouter); // UC5 — POST /api/invoices (adminGuard)
 
 // --- 404 for unknown API routes ---
 app.use('/api', (_req: Request, res: Response) => {

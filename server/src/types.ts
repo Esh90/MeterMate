@@ -125,6 +125,25 @@ export interface LifecycleResult {
   note: string | null;
 }
 
+/** A line item for an ad-hoc invoice (UC5). */
+export interface InvoiceLineItemInput {
+  title: string;
+  quantity: number;
+  unitPrice: string;
+}
+
+/** Normalized result of issuing an invoice (UC5). All amounts as display strings. */
+export interface InvoiceResult {
+  uid: string;
+  number: string | null;
+  status: string;
+  totalAmount: string | null;
+  dueAmount: string | null;
+  dueDate: string | null;
+  publicUrl: string | null;
+  emailed: boolean;
+}
+
 /** Normalized result of a successful subscription creation (UC1). */
 export interface SubscriptionResult {
   subscriptionId: number;

@@ -419,6 +419,51 @@ export function buildLifecycleDoneBlocks(input: {
   return blocks;
 }
 
+export function buildInvoiceStartedBlocks(): KnownBlock[] {
+  return [
+    { type: 'section', text: { type: 'mrkdwn', text: ':receipt: *Issuing invoice…*' } },
+  ];
+}
+
+export function buildInvoiceIssuedBlocks(input: {
+  number: string | null;
+  totalAmount: string | null;
+  dueAmount: string | null;
+  dueDate: string | null;
+  publicUrl: string | null;
+  emailed: boolean;
+}): KnownBlock[] {
+  const fields: { type: 'mrkdwn'; text: string }[] = [
+    { type: 'mrkdwn', text: `*Invoice:*\n${input.number ?? '—'}` },
+    { type: 'mrkdwn', text: `*Amount due:*\n$${input.dueAmount ?? input.totalAmount ?? '0.00'}` },
+  ];
+  if (input.dueDate) fields.push({ type: 'mrkdwn', text: `*Due date:*\n${input.dueDate}` });
+  fields.push({
+    type: 'mrkdwn',
+    text: `*Emailed:*\n${input.emailed ? 'yes' : 'no'}`,
+  });
+
+  const blocks: KnownBlock[] = [
+    { type: 'header', text: { type: 'plain_text', text: ':receipt: Invoice issued', emoji: true } },
+    { type: 'section', fields },
+  ];
+  if (input.publicUrl) {
+    blocks.push({
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Pay Invoice', emoji: true },
+          url: input.publicUrl,
+          action_id: 'pay_invoice',
+          style: 'primary',
+        },
+      ],
+    });
+  }
+  return blocks;
+}
+
 export function buildFailureBlocks(useCase: string, error: string): KnownBlock[] {
   return [
     { type: 'header', text: { type: 'plain_text', text: `:warning: ${useCase} failed`, emoji: true } },
