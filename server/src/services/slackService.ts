@@ -315,6 +315,69 @@ export function buildUsageRecordedBlocks(input: {
   ];
 }
 
+export function buildPlanPreviewBlocks(input: {
+  fromName: string;
+  toName: string;
+  proratedAdjustmentInCents: number;
+  chargeInCents: number;
+  creditAppliedInCents: number;
+  paymentDueInCents: number;
+}): KnownBlock[] {
+  return [
+    { type: 'header', text: { type: 'plain_text', text: ':mag: Plan change preview', emoji: true } },
+    {
+      type: 'section',
+      fields: [
+        { type: 'mrkdwn', text: `*Change:*\n${input.fromName} → ${input.toName}` },
+        { type: 'mrkdwn', text: `*Prorated charge:*\n${formatCents(input.chargeInCents)}` },
+        { type: 'mrkdwn', text: `*Credit applied:*\n${formatCents(input.creditAppliedInCents)}` },
+        { type: 'mrkdwn', text: `*Due now:*\n${formatCents(input.paymentDueInCents)}` },
+      ],
+    },
+    {
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: ':information_source: Preview only — not yet applied.' }],
+    },
+  ];
+}
+
+export function buildPlanChangedBlocks(input: {
+  fromName: string;
+  toName: string;
+  timing: 'prorate' | 'at-renewal';
+  effectiveAt: string | null;
+  maxioUrl: string;
+}): KnownBlock[] {
+  const effective =
+    input.timing === 'prorate'
+      ? 'immediately (prorated)'
+      : `at next renewal${input.effectiveAt ? ` (${input.effectiveAt})` : ''}`;
+  return [
+    {
+      type: 'header',
+      text: { type: 'plain_text', text: ':arrows_counterclockwise: Plan changed', emoji: true },
+    },
+    {
+      type: 'section',
+      fields: [
+        { type: 'mrkdwn', text: `*From → To:*\n${input.fromName} → ${input.toName}` },
+        { type: 'mrkdwn', text: `*Effective:*\n${effective}` },
+      ],
+    },
+    {
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'View in Maxio', emoji: true },
+          url: input.maxioUrl,
+          action_id: 'view_in_maxio_plan',
+        },
+      ],
+    },
+  ];
+}
+
 export function buildFailureBlocks(useCase: string, error: string): KnownBlock[] {
   return [
     { type: 'header', text: { type: 'plain_text', text: `:warning: ${useCase} failed`, emoji: true } },

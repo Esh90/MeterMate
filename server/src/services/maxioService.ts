@@ -1,8 +1,18 @@
 import { ApiError, CollectionMethod } from '@maxio-com/advanced-billing-sdk';
-import { getSubscriptionsController, getSubscriptionComponentsController } from '../maxioClient.js';
+import {
+  getSubscriptionsController,
+  getSubscriptionComponentsController,
+  getSubscriptionProductsController,
+} from '../maxioClient.js';
 import { centsToNumber } from '../util.js';
-import { findComponentMeta } from '../constants.js';
-import type { CollectionMethodInput, SubscriptionResult, UsageResult } from '../types.js';
+import { findComponentMeta, findPlan } from '../constants.js';
+import type {
+  CollectionMethodInput,
+  PlanChangePreview,
+  PlanChangeResult,
+  SubscriptionResult,
+  UsageResult,
+} from '../types.js';
 
 /**
  * Typed error thrown by maxioService. Carries an HTTP-ish status code and a
@@ -253,5 +263,127 @@ async function readPeriodTotal(subscriptionId: number, componentId: number): Pro
   } catch {
     // Period total is informational; never fail the recording over it.
     return null;
+  }
+}
+
+interface CurrentProduct {
+  handle: string;
+  name: string;
+  currentPeriodEndsAt: string | null;
+}
+
+/** Read a subscription's current product + period end (used to report old→new). */
+async function readCurrentProduct(subscriptionId: number): Promise<CurrentProduct> {
+  const { result } = await getSubscriptionsController().readSubscription(subscriptionId);
+  const sub = result.subscription;
+  return {
+    handle: sub?.product?.handle ?? 'unknown',
+    name: sub?.product?.name ?? sub?.product?.handle ?? 'unknown',
+    currentPeriodEndsAt: sub?.currentPeriodEndsAt ?? null,
+  };
+}
+
+function planName(handle: string, fallback?: string): string {
+  return findPlan(handle)?.name ?? fallback ?? handle;
+}
+
+export interface PlanChangeInput {
+  subscriptionId: number;
+  targetHandle: string;
+}
+
+/**
+ * UC3 — preview a plan change. Uses the same prorated migration mechanism the
+ * "prorate now" commit applies (`preservePeriod: true` → keep the billing period
+ * and issue a prorated charge), so the preview reflects exactly what committing
+ * with `prorate` timing would do.
+ */
+export async function previewPlanChange(input: PlanChangeInput): Promise<PlanChangePreview> {
+  try {
+    const current = await readCurrentProduct(input.subscriptionId);
+    const { result } = await getSubscriptionProductsController().previewSubscriptionProductMigration(
+      input.subscriptionId,
+      {
+        migration: {
+          productHandle: input.targetHandle,
+          preservePeriod: true,
+          includeCoupons: true,
+        },
+      },
+    );
+    const m = result.migration;
+    return {
+      fromHandle: current.handle,
+      fromName: current.name,
+      toHandle: input.targetHandle,
+      toName: planName(input.targetHandle),
+      proratedAdjustmentInCents: centsToNumber(m?.proratedAdjustmentInCents) ?? 0,
+      chargeInCents: centsToNumber(m?.chargeInCents) ?? 0,
+      creditAppliedInCents: centsToNumber(m?.creditAppliedInCents) ?? 0,
+      paymentDueInCents: centsToNumber(m?.paymentDueInCents) ?? 0,
+    };
+  } catch (err) {
+    if (err instanceof MaxioServiceError) throw err;
+    throw toServiceError(err, 'UC3 previewPlanChange');
+  }
+}
+
+export interface ApplyPlanChangeInput extends PlanChangeInput {
+  timing: 'prorate' | 'at-renewal';
+}
+
+/**
+ * UC3 — apply a plan change. `prorate` migrates the product now with proration
+ * (`preservePeriod: true`, same mechanism as the preview). `at-renewal` schedules
+ * a non-prorated product change effective at the next renewal via a delayed
+ * product change (`productChangeDelayed: true`).
+ */
+export async function applyPlanChange(input: ApplyPlanChangeInput): Promise<PlanChangeResult> {
+  try {
+    const current = await readCurrentProduct(input.subscriptionId);
+
+    if (input.timing === 'prorate') {
+      const { result } = await getSubscriptionProductsController().migrateSubscriptionProduct(
+        input.subscriptionId,
+        {
+          migration: {
+            productHandle: input.targetHandle,
+            preservePeriod: true,
+            includeCoupons: true,
+          },
+        },
+      );
+      const sub = result.subscription;
+      return {
+        fromHandle: current.handle,
+        fromName: current.name,
+        toHandle: sub?.product?.handle ?? input.targetHandle,
+        toName: sub?.product?.name ?? planName(input.targetHandle),
+        timing: 'prorate',
+        effectiveAt: null, // immediate
+        state: sub?.state ? String(sub.state) : 'unknown',
+      };
+    }
+
+    // at-renewal — delayed, non-prorated product change.
+    const { result } = await getSubscriptionsController().updateSubscription(input.subscriptionId, {
+      subscription: {
+        productHandle: input.targetHandle,
+        productChangeDelayed: true,
+      },
+    });
+    const sub = result.subscription;
+    return {
+      fromHandle: current.handle,
+      fromName: current.name,
+      toHandle: input.targetHandle,
+      toName: planName(input.targetHandle),
+      timing: 'at-renewal',
+      effectiveAt: sub?.currentPeriodEndsAt ?? current.currentPeriodEndsAt,
+      state: sub?.state ? String(sub.state) : 'unknown',
+    };
+  } catch (err) {
+    if (err instanceof MaxioServiceError) throw err;
+    throw toServiceError(err, 'UC3 applyPlanChange');
   }
 }

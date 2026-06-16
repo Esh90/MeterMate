@@ -85,6 +85,31 @@ export interface UsageResult {
   accruesToNextInvoice: true;
 }
 
+/** Proration preview for a plan change (UC3). All amounts in cents. */
+export interface PlanChangePreview {
+  fromHandle: string;
+  fromName: string;
+  toHandle: string;
+  toName: string;
+  proratedAdjustmentInCents: number;
+  chargeInCents: number;
+  creditAppliedInCents: number;
+  /** Net amount due now for an upgrade (0 for downgrades/credits). */
+  paymentDueInCents: number;
+}
+
+/** Result of applying a plan change (UC3). */
+export interface PlanChangeResult {
+  fromHandle: string;
+  fromName: string;
+  toHandle: string;
+  toName: string;
+  timing: 'prorate' | 'at-renewal';
+  /** When the change takes effect (now for prorate; next renewal for at-renewal). */
+  effectiveAt: string | null;
+  state: string;
+}
+
 /** Normalized result of a successful subscription creation (UC1). */
 export interface SubscriptionResult {
   subscriptionId: number;

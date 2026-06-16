@@ -3,6 +3,7 @@ import { config } from './config.js';
 import { metaRouter } from './routes/meta.js';
 import { bookRouter } from './routes/book.js';
 import { usageRouter } from './routes/usage.js';
+import { planChangeRouter } from './routes/planChange.js';
 import { sessionStore } from './stores/sessionStore.js';
 import { verifyAuth } from './services/slackService.js';
 import { runtimeState } from './state.js';
@@ -15,6 +16,7 @@ app.use(express.json());
 app.use('/api', metaRouter); // /api/health, /api/consultants, /api/components
 app.use('/api', bookRouter); // UC1 — POST /api/book
 app.use('/api', usageRouter); // UC2 — POST /api/usage
+app.use('/api', planChangeRouter); // UC3 — POST /api/plan-change(/preview)
 
 // --- 404 for unknown API routes ---
 app.use('/api', (_req: Request, res: Response) => {

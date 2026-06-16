@@ -6,6 +6,7 @@ import {
   ProductFamiliesController,
   ComponentsController,
   SubscriptionComponentsController,
+  SubscriptionProductsController,
 } from '@maxio-com/advanced-billing-sdk';
 import { config } from './config.js';
 
@@ -46,6 +47,7 @@ let products: ProductsController | null = null;
 let productFamilies: ProductFamiliesController | null = null;
 let components: ComponentsController | null = null;
 let subscriptionComponents: SubscriptionComponentsController | null = null;
+let subscriptionProducts: SubscriptionProductsController | null = null;
 
 export function getSubscriptionsController(): SubscriptionsController {
   if (!subscriptions) subscriptions = new SubscriptionsController(getMaxioClient());
@@ -72,6 +74,13 @@ export function getSubscriptionComponentsController(): SubscriptionComponentsCon
     subscriptionComponents = new SubscriptionComponentsController(getMaxioClient());
   }
   return subscriptionComponents;
+}
+
+export function getSubscriptionProductsController(): SubscriptionProductsController {
+  if (!subscriptionProducts) {
+    subscriptionProducts = new SubscriptionProductsController(getMaxioClient());
+  }
+  return subscriptionProducts;
 }
 
 /** Admin URL for a subscription, used in Slack "View in Maxio" buttons. */
