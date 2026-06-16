@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
+import { BookForm } from './components/client/BookForm.tsx';
+
+type Role = 'client' | 'admin';
 
 type HealthState =
   | { kind: 'loading' }
-  | { kind: 'ok'; status: string }
-  | { kind: 'error'; message: string };
+  | { kind: 'ok'; slackOk: boolean | null; maxioSite: string }
+  | { kind: 'error' };
 
 /**
- * Phase 0 shell. Confirms the SPA renders and can reach the backend health
- * endpoint through the Vite proxy. Replaced by the role-switch shell in Phase 6.
+ * Application shell (plan §4.2): a role switch (Client | Admin) plus a backend
+ * health indicator. The Client role exposes the booking flow (UC1). Admin tools
+ * (UC5/UC6) mount here as their backends land.
  */
 export function App() {
+  const [role, setRole] = useState<Role>('client');
   const [health, setHealth] = useState<HealthState>({ kind: 'loading' });
 
   useEffect(() => {
@@ -17,18 +22,13 @@ export function App() {
     fetch('/api/health')
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return (await res.json()) as { status: string };
+        return (await res.json()) as { slackOk: boolean | null; maxioSite: string };
       })
       .then((data) => {
-        if (!cancelled) setHealth({ kind: 'ok', status: data.status });
+        if (!cancelled) setHealth({ kind: 'ok', slackOk: data.slackOk, maxioSite: data.maxioSite });
       })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setHealth({
-            kind: 'error',
-            message: err instanceof Error ? err.message : 'Unknown error',
-          });
-        }
+      .catch(() => {
+        if (!cancelled) setHealth({ kind: 'error' });
       });
     return () => {
       cancelled = true;
@@ -36,24 +36,60 @@ export function App() {
   }, []);
 
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 640 }}>
-      <h1>MeterMate</h1>
-      <p>Maxio + Slack billing concierge — scaffold online.</p>
-      <section
-        style={{
-          marginTop: '1rem',
-          padding: '0.75rem 1rem',
-          borderRadius: 8,
-          border: '1px solid #ddd',
-        }}
-      >
-        <strong>Backend health:</strong>{' '}
-        {health.kind === 'loading' && <span>checking…</span>}
-        {health.kind === 'ok' && <span style={{ color: 'green' }}>{health.status}</span>}
-        {health.kind === 'error' && (
-          <span style={{ color: 'crimson' }}>unreachable ({health.message})</span>
+    <div className="app">
+      <header className="topbar">
+        <div className="brand">
+          <span className="logo">📟</span>
+          <div>
+            <h1>MeterMate</h1>
+            <span className="muted">Maxio + Slack billing concierge</span>
+          </div>
+        </div>
+        <div className="roles" role="tablist" aria-label="Role">
+          <button
+            className={role === 'client' ? 'active' : ''}
+            onClick={() => setRole('client')}
+            role="tab"
+            aria-selected={role === 'client'}
+          >
+            Client
+          </button>
+          <button
+            className={role === 'admin' ? 'active' : ''}
+            onClick={() => setRole('admin')}
+            role="tab"
+            aria-selected={role === 'admin'}
+          >
+            Admin
+          </button>
+        </div>
+      </header>
+
+      <div className="healthbar">
+        {health.kind === 'loading' && <span className="muted">checking backend…</span>}
+        {health.kind === 'error' && <span className="dot bad" />}
+        {health.kind === 'ok' && (
+          <>
+            <span className="dot ok" /> backend ok · site <code>{health.maxioSite}</code> · Slack{' '}
+            {health.slackOk == null ? 'checking' : health.slackOk ? 'connected' : 'unavailable'}
+          </>
         )}
-      </section>
-    </main>
+        {health.kind === 'error' && <span> backend unreachable</span>}
+      </div>
+
+      <main className="content">
+        {role === 'client' ? (
+          <BookForm />
+        ) : (
+          <div className="card">
+            <h2>Admin</h2>
+            <p className="muted">
+              Admin tools (invoice issue &amp; activity digest) connect here as their backends are
+              built. The booking flow is available under the Client role.
+            </p>
+          </div>
+        )}
+      </main>
+    </div>
   );
 }
