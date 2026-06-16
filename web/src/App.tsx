@@ -2,14 +2,16 @@ import { useEffect, useState } from 'react';
 import { BookForm } from './components/client/BookForm.tsx';
 import { UsageForm } from './components/client/UsageForm.tsx';
 import { PlanChangeForm } from './components/client/PlanChangeForm.tsx';
+import { LifecycleForm } from './components/client/LifecycleForm.tsx';
 
 type Role = 'client' | 'admin';
-type ClientTab = 'book' | 'usage' | 'plan';
+type ClientTab = 'book' | 'usage' | 'plan' | 'lifecycle';
 
 const CLIENT_TABS: { id: ClientTab; label: string }[] = [
   { id: 'book', label: 'Book & Subscribe' },
   { id: 'usage', label: 'Report Usage' },
   { id: 'plan', label: 'Change Plan' },
+  { id: 'lifecycle', label: 'Manage Subscription' },
 ];
 
 type HealthState =
@@ -104,6 +106,7 @@ export function App() {
             {clientTab === 'book' && <BookForm />}
             {clientTab === 'usage' && <UsageForm />}
             {clientTab === 'plan' && <PlanChangeForm />}
+            {clientTab === 'lifecycle' && <LifecycleForm />}
           </>
         ) : (
           <div className="card">

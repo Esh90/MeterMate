@@ -224,3 +224,34 @@ export async function previewPlanChange(
 export async function applyPlanChange(req: PlanChangeRequest): Promise<PlanChangeResponse> {
   return postJson<PlanChangeResponse>('/api/plan-change', { sessionId: getSessionId(), ...req });
 }
+
+export type LifecycleActionName = 'pause' | 'resume' | 'cancel' | 'reactivate';
+export type CancelTypeName = 'immediate' | 'end-of-period';
+
+export interface LifecycleData {
+  action: LifecycleActionName;
+  cancelType: CancelTypeName | null;
+  previousState: string;
+  newState: string;
+  effectiveAt: string | null;
+  reasonCode: string | null;
+  note: string | null;
+}
+
+export type LifecycleResponse =
+  | { status: 'ok'; txnId: string; channelId: string | null; channelName: string | null; lifecycle: LifecycleData }
+  | FailedShape
+  | { status: 'invalid'; errors: ValidationIssue[] }
+  | { status: 'session_expired'; message?: string }
+  | { status: 'error'; message: string };
+
+export interface LifecycleRequest {
+  txnRef: string;
+  action: LifecycleActionName;
+  cancelType?: CancelTypeName;
+  reasonCode?: string;
+}
+
+export async function lifecycleAction(req: LifecycleRequest): Promise<LifecycleResponse> {
+  return postJson<LifecycleResponse>('/api/lifecycle', { sessionId: getSessionId(), ...req });
+}
