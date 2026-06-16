@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { BookForm } from './components/client/BookForm.tsx';
 import { UsageForm } from './components/client/UsageForm.tsx';
+import { PlanChangeForm } from './components/client/PlanChangeForm.tsx';
 
 type Role = 'client' | 'admin';
-type ClientTab = 'book' | 'usage';
+type ClientTab = 'book' | 'usage' | 'plan';
 
 const CLIENT_TABS: { id: ClientTab; label: string }[] = [
   { id: 'book', label: 'Book & Subscribe' },
   { id: 'usage', label: 'Report Usage' },
+  { id: 'plan', label: 'Change Plan' },
 ];
 
 type HealthState =
@@ -99,7 +101,9 @@ export function App() {
                 </button>
               ))}
             </nav>
-            {clientTab === 'book' ? <BookForm /> : <UsageForm />}
+            {clientTab === 'book' && <BookForm />}
+            {clientTab === 'usage' && <UsageForm />}
+            {clientTab === 'plan' && <PlanChangeForm />}
           </>
         ) : (
           <div className="card">

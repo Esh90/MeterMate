@@ -162,3 +162,65 @@ export type UsageResponse =
 export async function recordUsage(req: UsageRequest): Promise<UsageResponse> {
   return postJson<UsageResponse>('/api/usage', { sessionId: getSessionId(), ...req });
 }
+
+export interface PlanChangePreviewData {
+  fromHandle: string;
+  fromName: string;
+  toHandle: string;
+  toName: string;
+  proratedAdjustmentInCents: number;
+  chargeInCents: number;
+  creditAppliedInCents: number;
+  paymentDueInCents: number;
+}
+
+export interface PlanChangeData {
+  fromHandle: string;
+  fromName: string;
+  toHandle: string;
+  toName: string;
+  timing: 'prorate' | 'at-renewal';
+  effectiveAt: string | null;
+  state: string;
+}
+
+type FailedShape = {
+  status: 'maxio_failed';
+  txnId: string;
+  channelId: string | null;
+  channelName: string | null;
+  error: string;
+};
+
+export type PlanPreviewResponse =
+  | { status: 'ok'; txnId: string; channelId: string | null; channelName: string | null; preview: PlanChangePreviewData }
+  | FailedShape
+  | { status: 'invalid'; errors: ValidationIssue[] }
+  | { status: 'session_expired'; message?: string }
+  | { status: 'error'; message: string };
+
+export type PlanChangeResponse =
+  | { status: 'ok'; txnId: string; channelId: string | null; channelName: string | null; change: PlanChangeData }
+  | FailedShape
+  | { status: 'invalid'; errors: ValidationIssue[] }
+  | { status: 'session_expired'; message?: string }
+  | { status: 'error'; message: string };
+
+export interface PlanChangeRequest {
+  txnRef: string;
+  targetHandle: string;
+  timing: 'prorate' | 'at-renewal';
+}
+
+export async function previewPlanChange(
+  req: Pick<PlanChangeRequest, 'txnRef' | 'targetHandle'>,
+): Promise<PlanPreviewResponse> {
+  return postJson<PlanPreviewResponse>('/api/plan-change/preview', {
+    sessionId: getSessionId(),
+    ...req,
+  });
+}
+
+export async function applyPlanChange(req: PlanChangeRequest): Promise<PlanChangeResponse> {
+  return postJson<PlanChangeResponse>('/api/plan-change', { sessionId: getSessionId(), ...req });
+}
